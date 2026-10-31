@@ -69,6 +69,7 @@ GOLDEN_GATES=(
   "omp-extension:bash scripts/validate-omp-extension.sh:false"
   "mcp-package:bash scripts/validate-mcp-package.sh:false"
   "docs-base-path:bash scripts/validate-docs-base-path.sh:false"
+  "security-dashboard-bind:node tests/security/dashboard-bind.cjs:false"
   "import-boundaries:bash scripts/check-import-boundaries.sh:false"
   "skill-catalog:bash scripts/validate-skill-catalog.sh:false"
   "specs-parse:bash scripts/validate-specs-yaml.sh:false"
@@ -204,3 +205,4 @@ golden_run_deterministic_gates() {
     fi
   done
 }
+
