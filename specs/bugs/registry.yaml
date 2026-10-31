@@ -580,3 +580,9 @@ bugs:
     approach: "Give every ${OMP_PLUGIN_ROOT} reference a ':-.' default; smoke-test the manifest under omp and Claude Code host profiles"
     risk_level: low
     commit_message: "fix(mcp): default OMP_PLUGIN_ROOT so bigpowers-mcp starts outside OMP (#168)"
+  - id: BUG-2026-10-29-mcp-secret-diffs
+    status: open
+    severity: medium
+    scope: mcp
+    title: "Exclude secret files from every MCP diff block"
+    file: bugs/BUG-2026-10-29-mcp-secret-diffs.md
