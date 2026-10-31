@@ -70,6 +70,7 @@ GOLDEN_GATES=(
   "mcp-package:bash scripts/validate-mcp-package.sh:false"
   "docs-base-path:bash scripts/validate-docs-base-path.sh:false"
   "import-boundaries:bash scripts/check-import-boundaries.sh:false"
+  "security-dashboard-render:node tests/security/dashboard-render.cjs:false"
   "skill-catalog:bash scripts/validate-skill-catalog.sh:false"
   "specs-parse:bash scripts/validate-specs-yaml.sh:false"
   # The runner itself: failing output is shown, skips are named and reasoned.
@@ -204,3 +205,4 @@ golden_run_deterministic_gates() {
     fi
   done
 }
+
