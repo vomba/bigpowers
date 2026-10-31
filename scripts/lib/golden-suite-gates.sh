@@ -67,6 +67,8 @@ GOLDEN_GATES=(
   "install-helpers:bash scripts/test-install-helpers.sh:false"
   "project-runtime:bash scripts/test-project-runtime.sh:false"
   "omp-extension:bash scripts/validate-omp-extension.sh:false"
+  "omp-resources:python3 tests/test_omp_sync.py:false"
+  "omp-native:bun tests/test_omp_native.ts --suite all:false"
   "mcp-package:bash scripts/validate-mcp-package.sh:false"
   "docs-base-path:bash scripts/validate-docs-base-path.sh:false"
   "import-boundaries:bash scripts/check-import-boundaries.sh:false"

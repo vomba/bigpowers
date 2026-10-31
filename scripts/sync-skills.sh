@@ -24,12 +24,47 @@
 #                       Used by bin/setup.js: end-user installs never carry
 #                       specs/ or docs/ (see .npmignore), so that dev-only
 #                       maintenance step has nothing to operate on.
+#   --target omp       Render native .omp resources only; no other target or maintenance writes.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/python-env.sh"
 
 OKF_MODE=0
 OPN_TARGET=""
 DISTRIBUTE_ONLY=0
+
+# OMP selection must exit before legacy target cleanup and post-sync work.
+sync_omp_only() {
+  local target="" seen=0 root
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --target)
+        [[ $# -ge 2 && "$seen" -eq 0 ]] || {
+          echo "sync-skills: use exactly one --target omp" >&2; return 2;
+        }
+        target="$2"; seen=1; shift 2 ;;
+      --target=*)
+        [[ "$seen" -eq 0 ]] || {
+          echo "sync-skills: repeated --target; use --target omp" >&2; return 2;
+        }
+        target="${1#*=}"; seen=1; shift ;;
+      --distribute-only) shift ;;
+      *)
+        echo "sync-skills: unsupported OMP option '$1'; use --target omp [--distribute-only]" >&2
+        return 2 ;;
+    esac
+  done
+  [[ "$target" == "omp" ]] || {
+    echo "sync-skills: unsupported target '$target'; use --target omp" >&2; return 2;
+  }
+  root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || return 1
+  "$PYTHON" "$root/scripts/lib/srp-engine.py" --all --target omp
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --target|--target=*) sync_omp_only "$@"; exit $? ;;
+  esac
+done
 
 for arg in "$@"; do
   case "$arg" in
@@ -39,10 +74,12 @@ for arg in "$@"; do
     --distribute-only) DISTRIBUTE_ONLY=1 ;;
     --help|-h)
       echo "Usage: sync-skills.sh [--okf] [--opencode <path>] [--distribute-only]"
+      echo "       sync-skills.sh --target omp [--distribute-only]"
       echo ""
       echo "  --okf              Generate specs/skills-wiki/ OKF concept bundle"
       echo "  --opencode         Sync skills to bigpowers-opencode repo"
       echo "  --distribute-only  Render skills only — skip dev-maintenance regen"
+      echo "  --target omp       Render native OMP skills and commands only"
       echo "  --help             Show this message"
       exit 0
       ;;

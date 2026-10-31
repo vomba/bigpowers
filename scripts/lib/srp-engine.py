@@ -15,6 +15,12 @@ _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
+# Native generation must not add source-tree cache files outside .omp.
+_previous_bytecode_policy = sys.dont_write_bytecode
+sys.dont_write_bytecode = True
+from omp_dispatch import requests_omp, run_omp  # noqa: E402
+sys.dont_write_bytecode = _previous_bytecode_policy or requests_omp(sys.argv[1:])
+
 from link_utils import LINK_RE, EXTERNAL_RE  # noqa: E402
 from srp_engine_links import rewrite_links_for_pi  # noqa: E402
 from srp_engine_okf import render_okf_concept  # noqa: E402
@@ -219,11 +225,16 @@ def render_all(records, adapters, repo_root):
 
 def main():
     repo_root = resolve_repo_root()
+    if requests_omp(sys.argv[1:]):
+        run_omp(sys.argv[1:], repo_root, load_yaml=_load_yaml,
+                iterate_skills=iterate_skills,
+                dispatch=dispatch_to_adapter)
+        return
 
     if "--all" in sys.argv:
         okf_mode = "--okf" in sys.argv
         skills = iterate_skills(repo_root)
-        adapters = get_active_adapters(repo_root)
+        adapters = [adapter for adapter in get_active_adapters(repo_root) if adapter != "omp"]
 
         okf_wiki_skills = os.environ.get("OKF_WIKI_SKILLS", os.path.join(repo_root, "specs", "skills-wiki", "skills"))
 

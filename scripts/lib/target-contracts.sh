@@ -109,6 +109,18 @@ assert_hooks_manifest() {
   return 0
 }
 
+assert_omp_native_resources() {
+  local id="$1"
+  local root="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+  if "${PYTHON:-python3}" "$root/scripts/lib/omp-resources.py" --check \
+    "${OMP_SKILLS:-$PWD/.omp/skills}/.."; then
+    echo "PASS $id:omp_native_resources"
+    return 0
+  fi
+  echo "FAIL $id:omp_native_resources — generate or repair the owned .omp resources"
+  return 1
+}
+
 run_contract() {
   local id="$1"
   local contract="$2"
@@ -122,6 +134,7 @@ run_contract() {
     gemini_hooks_manifest) assert_gemini_hooks_manifest "$id" ;;
     *_hooks_manifest) assert_hooks_manifest "$id" "$contract" ;;
     pi_skills_nonempty) assert_pi_skills_nonempty "$id" ;;
+    omp_native_resources) assert_omp_native_resources "$id" ;;
     agy_skills_nonempty) assert_agy_skills_nonempty "$id" ;;
     aider_bridge) assert_aider_bridge "$id" ;;
     # A contract declared in targets.yaml with no assertion behind it is a

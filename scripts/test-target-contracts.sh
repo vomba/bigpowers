@@ -71,5 +71,37 @@ for c in $declared; do
   esac
 done
 
+# Exercise the OMP assertion's observable integrity boundary, not only routing.
+TA_TMPDIR=$(mktemp -d)
+TA_TMPDIR="$(cd "$TA_TMPDIR" && pwd -P)"
+omp_fixture="$TA_TMPDIR/omp-source"
+omp_source="$omp_fixture/skills/contract-example/SKILL.md"
+mkdir -p "$(dirname "$omp_source")"
+printf '%s\n' '---' 'name: contract-example' 'description: Inspect owned output.' \
+  '---' '# Contract example' 'Inspect the assigned change.' > "$omp_source"
+if (cd "$omp_fixture" && run_contract omp omp_native_resources >/dev/null 2>&1); then
+  ta_fail "OMP contract accepted missing native resources"
+else
+  ta_pass "OMP contract rejects missing native resources"
+fi
+if jq -nc --arg root "$omp_fixture" --arg source "$omp_source" \
+  '{repo_root:$root,mode:"all",skills:[{name:"contract-example",description:"Inspect owned output.",source_path:$source}]}' \
+  | OMP_SKILLS="$omp_fixture/.omp/skills" "${PYTHON:-python3}" \
+    "$REPO_ROOT/scripts/lib/omp-resources.py" >/dev/null; then
+  if (cd "$omp_fixture" && run_contract omp omp_native_resources >/dev/null); then
+    ta_pass "OMP contract accepts actual generated owned resources"
+  else
+    ta_fail "OMP contract rejected actual generated resources"
+  fi
+  printf '%s\n' 'User edit must survive.' >> "$omp_fixture/.omp/skills/contract-example/SKILL.md"
+  if (cd "$omp_fixture" && run_contract omp omp_native_resources >/dev/null 2>&1); then
+    ta_fail "OMP contract accepted edited owned output"
+  else
+    ta_pass "OMP contract rejects edited owned output"
+  fi
+else
+  ta_fail "OMP contract fixture generation failed"
+fi
+
 echo "test-target-contracts: $TA_PASS passed, $TA_FAIL failed"
 [[ "$TA_FAIL" -eq 0 ]] || exit 1

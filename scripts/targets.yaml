@@ -109,17 +109,14 @@ targets:
       - agents_md_exists
 
   - id: omp
-    name: Open Multi-Process
+    name: Oh My Pi (OMP)
     tier: opt_in
     skill:
       adapter: omp
       output: .omp/skills
-    context:
-      adapter: omp
-      mode: symlink
-      file: CLAUDE.md
+    context: null
     contracts:
-      - symlink_claude_md
+      - omp_native_resources
 
   - id: hermes
     name: Hermes Agent
