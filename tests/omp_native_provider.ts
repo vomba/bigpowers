@@ -2,12 +2,25 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { agentDir, resolveRuntime, sdkImport, workspace } from "./omp_native_fixture";
-import type { Command, Model, NativeAi, NativeModelSettings, NativeSdk, NativeSession, NativeTaskSettings, Skill, ToolContext } from "./omp_native_types";
+import type { Command, Model, NativeAi, NativeModelSettings, NativeSdk, NativeSession, NativeTaskSettings, Registry, Settings, Skill, ToolContext } from "./omp_native_types";
 
 export interface Dispatch { agent?: string; task: string; name: string; }
 export interface CallTrace { provider: string; model: string; sessionId?: string; text: string; }
-export async function createProviderFixture(sdk: NativeSdk, skills: Skill[], slashCommands: Command[]) {
-  // The approved external runtime is selected at invocation; no root dependency is allowed.
+export interface ProviderSessionOptions { skills?: Skill[]; slashCommands?: Command[]; legacyExtension?: boolean; }
+export interface ProviderFixture {
+  settings: Settings;
+  registry: Registry;
+  traces: CallTrace[];
+  toolResults: Record<string, unknown>[];
+  taskSettings: NativeTaskSettings;
+  modelSettings: NativeModelSettings;
+  session(spawns?: string, options?: ProviderSessionOptions): Promise<NativeSession>;
+  dispatch(parent: NativeSession, calls: Dispatch[], prompt?: string): Promise<CallTrace[]>;
+  toolSession(parent: NativeSession): ToolContext;
+  dispose(): Promise<void>;
+}
+export async function createProviderFixture(sdk: NativeSdk, skills: Skill[], slashCommands: Command[]): Promise<ProviderFixture> {
+  // Resolve SDK packages only from the approved external runtime, never root node_modules.
   const ai: NativeAi = await import(pathToFileURL(resolveRuntime("@oh-my-pi/pi-ai")).href);
   const taskSettings = await sdkImport<NativeTaskSettings>("/task/settings");
   const modelSettings = await sdkImport<NativeModelSettings>("/config/model-settings");
@@ -32,12 +45,13 @@ export async function createProviderFixture(sdk: NativeSdk, skills: Skill[], sla
     "fixture-review": ["review", "review-next"], "fixture-override": ["override"],
   };
   let callId = 0;
-  function stream(model: Model, context: { messages: unknown[] }, options?: { sessionId?: string }) {
+  function stream(model: Model, context: { messages: unknown[]; tools?: { name: string }[] }, options?: { sessionId?: string }) {
     const out = ai.createAssistantMessageEventStream();
     const text = JSON.stringify(context.messages);
     traces.push({ provider: model.provider, model: model.id, sessionId: options?.sessionId, text });
     console.log(`Native dispatch transport: provider=${model.provider}; model=${model.id}; session=${options?.sessionId ?? "missing"}`);
-    const calls = model.id === "parent" ? queue.shift() ?? [] : [];
+    // Host description compression has no task tool and must not consume dispatch input.
+    const calls = model.id === "parent" && context.tools?.some(tool => tool.name === "task") ? queue.shift() ?? [] : [];
     const content = calls.length ? calls.map(item => ({
       type: "toolCall", id: `fixture-${++callId}`, name: "task", arguments: {
         ...item, solutionSpace: "one deterministic fixture response; no files changed",
@@ -74,14 +88,17 @@ export async function createProviderFixture(sdk: NativeSdk, skills: Skill[], sla
     })),
   });
   const sessions: NativeSession[] = [];
-  async function session(spawns = "*") {
+  async function session(spawns = "*", options: ProviderSessionOptions = {}) {
     const { session: created } = await sdk.createAgentSession({
       cwd: workspace, agentDir, settings, authStorage: auth, modelRegistry: registry,
       model: registry.find("fixture-parent", "parent"), sessionManager: sdk.SessionManager.inMemory(workspace),
-      spawns, skills, slashCommands, contextFiles: [], noContextFiles: true, rules: [], promptTemplates: [],
-      disableExtensionDiscovery: true, preloadedExtensionPaths: [], preloadedCustomToolPaths: [],
+      spawns, skills: options.skills ?? skills, slashCommands: options.slashCommands ?? slashCommands,
+      contextFiles: [], noContextFiles: true, rules: [], promptTemplates: [],
+      disableExtensionDiscovery: true,
+      preloadedExtensionPaths: options.legacyExtension ? [path.join(workspace, "extensions", "omp-hooks.ts")] : [],
+      preloadedCustomToolPaths: [],
       enableMCP: false, enableLsp: false, enableIrc: false, skipPythonPreflight: true,
-      autoTitle: false, cacheWarming: false, toolNames: ["read", "task"], restrictToolNames: true,
+      autoTitle: false, cacheWarming: false, toolNames: ["read", "task"], restrictToolNames: !options.legacyExtension,
       bindProcessState: false, requireYieldTool: false,
     });
     sessions.push(created);

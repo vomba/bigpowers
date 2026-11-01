@@ -244,93 +244,120 @@ Skills are loaded on-demand via progressive disclosure: only descriptions are al
 
 ## Native OMP support
 
-Generate native resources from this source checkout:
+The repository tracks native skills in `.omp/skills/` and convenience commands in
+`.omp/commands/`. A fresh clone contains these resources without generation.
+
+Start OMP from the checkout root to use `/bigpowers-request-review` or another
+`/bigpowers-NAME` command. Nested directories do not inherit the root's project commands.
+
+### Regeneration and portability
+
+Edit canonical sources under `skills/`, then run normal sync:
 
 ```bash
-bash scripts/sync-skills.sh --target omp
+bash scripts/sync-skills.sh
 ```
 
-The command creates `.omp/skills/`, `.omp/commands/`, and an ownership inventory.
-It does not change other integration outputs or run post-sync maintenance.
-Ordinary sync does not generate or refresh OMP resources.
-`--target=omp` is equivalent. `--distribute-only` is allowed but redundant.
-OMP selection cannot be combined with `--okf` or `--opencode`.
+Normal sync regenerates OMP alongside the existing targets and runs its usual
+maintenance. Installer distribution uses `--distribute-only` to skip development
+maintenance, not to disable OMP generation.
 
-Start OMP from the checkout root to use commands such as
-`/bigpowers-request-review`. Skills keep their canonical names and separate assets.
-Commands read the generated skill rather than embed its complete instructions.
-References use repository-backed `file://` URIs. If you move the checkout,
-regenerate the resources before use.
-
-Native discovery retains OMP's precedence rules. Same-name skills can receive
-namespaced aliases, and project commands can shadow user commands. Nested
-directories do not inherit root project commands. Generation preserves existing
-files but does not promise unchanged bare-name selection.
-
-### Existing agent and model allocations
-
-When a workflow delegates work, OMP selects the model through the agent's existing allocation.
-Generated skills omit Claude-specific `model:` aliases from their native headers.
-Canonical source skills and Pi model metadata remain unchanged.
-
-Keep agent allocations in your existing OMP settings. For example:
-
-```yaml
-task:
-  agentModelOverrides:
-    task: "@task"
-    reviewer: "@review"
-```
-
-Use OMP's Roles view to assign providers and models to those roles.
-Generation does not write these settings or create agents.
-Implementation delegation requires an implementation-capable agent and permission
-from the tool contract and parent spawn policy. Independent review uses the
-existing `reviewer` agent. Inline work keeps the parent model unchanged.
-Source `haiku`, `sonnet`, and `opus` labels do not override native allocations.
-The routing instructions do not force every skill into a subagent.
-
-### Ownership and project boundaries
-
-Keep `.omp/.bigpowers-resources.json` with its generated files.
-Generation updates only verified, unchanged owned output.
-It refuses unowned collisions, edited or missing owned files, and unsafe symlink paths.
-It retains and reports stale files instead of deleting them.
-Single-skill refresh preserves ownership records for other skills.
-Individual writes are atomic, but an interrupted multi-file update can leave partial output.
-The next invocation refuses ambiguous ownership instead of adopting or repairing it.
-
-Generation creates no extension, hook, MCP configuration, agent, provider, memory
-setting, or project-policy symlink. Resource loading does not initialize projects.
-Project-dependent workflows still require the approved protected integration and
-explicit authorization. The resource inventory does not establish that authority.
-
-Verify the owned resources without changing them:
+The existing Python interface can regenerate one skill:
 
 ```bash
-python3 scripts/lib/omp-resources.py --check .omp
+python3 scripts/lib/srp-engine.py skills/request-review/SKILL.md --target omp
+```
+
+Generated skills contain the compiled body, including sibling Markdown.
+Relative links resolve to canonical supporting assets under `skills/`.
+Each generated skill links to its canonical resource directory for bare filenames.
+
+Move the full checkout without regeneration. Keep its directory layout intact.
+The `.omp` directory alone is not a standalone package.
+Workflow commands such as `bash scripts/run-skill-verify.sh` remain project-relative.
+
+The existing npm package includes generated resources. This adds no OMP
+plugin-manager installation contract and does not change the Pi or MCP package contracts.
+
+### Native selection and existing roles
+
+Convenience commands ask the agent to read `skill://NAME`, then pass the command
+arguments. Native discovery and precedence remain authoritative, including explicit user overrides.
+Commands do not guarantee selection of the original generated variant.
+
+Same-name skills can receive native namespaced aliases. Project commands can
+shadow user commands. Existing OMP settings control these collisions.
+
+Generated skills omit source `model:` aliases. Routing instructions select
+existing permitted agents by responsibility, not concrete providers or models.
+Inline work keeps the parent model unchanged.
+
+Implementation work requires an implementation-capable agent and permission
+from the tool contract and parent policy. Independent review uses separate
+reviewer children where the workflow requires them.
+
+Keep allocations in your existing OMP settings. Generation creates no agents
+and does not edit configuration, switch models automatically, or install an
+extension, hook, MCP service, or memory owner.
+
+These are instructions, not enforced routing. Existing user and project policies
+remain authoritative. Resource loading does not initialize a project or grant
+permission to run a workflow. Follow existing project setup and authorization requirements.
+
+### Generated files and collisions
+
+Both resource types carry a generated-by comment naming their canonical source.
+Regeneration replaces marked files, including manual edits inside them.
+Edit the source instead of generated output.
+
+Generation refuses unmarked files, incompatible path types, and symlink paths
+before it writes either resource in a skill/command pair.
+It preserves unrelated authored resources and configuration.
+
+Generation is not a whole-catalog transaction. A later failure can leave earlier
+resources updated. Resolve the error, regenerate, and validate before use.
+Stale marked resources fail validation instead of automatic deletion.
+
+Old test-branch checkouts can contain untracked `.omp` output that blocks checkout
+or pull. Use a fresh clone of the corrected branch rather than delete user files.
+
+Validate the catalog without changing it:
+
+```bash
+python3 scripts/validate-omp-resources.py .
+# Contributors: also verify expected resources belong to the Git index.
+python3 scripts/validate-omp-resources.py . --tracked
 ```
 
 ### Native compatibility checks
 
-Use Bun **1.4.4** and Python with PyYAML. Provision the test SDK outside this
-checkout, with explicit approval:
+Shared Preflight uses Python/Bash generation checks without Bun or the native SDK.
+The separate `omp-native` CI job still blocks release and Pages.
+The legacy-extension coexistence check uses its existing development dependencies.
+Run `npm ci` in the checkout before the native suite.
+
+For the native suite, use Bun **1.4.4**. With explicit approval, provision an
+isolated SDK and a Python virtualenv with PyYAML outside the checkout:
 
 ```bash
 runtime="$(mktemp -d)"
-npm install --prefix "$runtime" --ignore-scripts --no-audit --no-fund \
+python3 -m venv "$runtime/python"
+"$runtime/python/bin/python" -m pip install PyYAML
+npm install --prefix "$runtime/sdk" --ignore-scripts --no-audit --no-fund \
   @oh-my-pi/pi-coding-agent@18.13.3
-export BIGPOWERS_OMP_TEST_ROOT="$runtime"
-export BIGPOWERS_OMP_TEST_PYTHON="$(python3 -c 'import sys; print(sys.executable)')"
-python3 tests/test_omp_sync.py
+export BIGPOWERS_OMP_TEST_ROOT="$runtime/sdk"
+export BIGPOWERS_OMP_TEST_PYTHON="$runtime/python/bin/python"
 bun tests/test_omp_native.ts --suite all
 ```
 
-The native harness requires the explicit SDK root and verifies its version and
-published lock integrity. It isolates configuration and credentials before SDK
-discovery. Deterministic local providers exercise native task resolution and
-child launches without external model requests. These checks do not prove live
-provider availability or arbitrary model compliance with routing instructions.
+The native harness requires those explicit dependencies and checks the SDK's
+version and published lock integrity. The top-level pin does not freeze every
+transitive dependency.
+
+The harness isolates configuration and credentials. Local deterministic providers
+exercise native discovery, resolution, and child launches without external model
+requests. These checks do not prove live provider availability or arbitrary model
+compliance with routing instructions.
 
 ## 🔧 MCP Server (Model Context Protocol)
 

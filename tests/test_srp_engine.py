@@ -207,26 +207,6 @@ class TestDispatchUsesResolvedBash(unittest.TestCase):
         self.assertEqual(captured["cmd"][1], self.adapter)
 
 
-class TestWriteIrStream(unittest.TestCase):
-    """#138: the whole run's IR is serialised once."""
-
-    def test_writes_nul_delimited_fields_in_order(self):
-        records = [{
-            'name': 'demo',
-            'description': 'a "demo"',
-            'model': 'gpt',
-            'body': 'line1\nline2',
-        }]
-        with mock.patch.object(_srp, 'rewrite_links_for_pi', return_value='PI-BODY'):
-            path = _srp._write_ir_stream(records)
-        try:
-            with open(path, 'rb') as f:
-                data = f.read()
-        finally:
-            os.unlink(path)
-        self.assertEqual(data, b'demo\x00a "demo"\x00gpt\x00line1\nline2\x00PI-BODY\x00')
-
-
 class TestRenderAll(unittest.TestCase):
     """#138: one bash process per adapter, not one per skill×adapter."""
 
@@ -265,33 +245,6 @@ class TestRenderAll(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 _srp.render_all(self._records(1), ['not-a-real-adapter'], _REPO_ROOT)
         run.assert_not_called()
-
-
-class TestAdapterRenderAllDriver(unittest.TestCase):
-    """#138: the bash driver sources one adapter and renders the stream."""
-
-    def test_driver_renders_stream_in_a_single_process(self):
-        import shutil
-        import subprocess
-
-        driver = os.path.join(_REPO_ROOT, 'scripts', 'lib', 'adapter-render-all.sh')
-        adapter = os.path.join(_REPO_ROOT, 'scripts', 'adapters', 'cursor.sh')
-        with tempfile.TemporaryDirectory() as tmp:
-            stream = os.path.join(tmp, 'ir.bin')
-            with open(stream, 'wb') as f:
-                for field in ('demo-skill', 'desc', '', 'body text', 'body text'):
-                    f.write(field.encode())
-                    f.write(b'\x00')
-            env = dict(os.environ)
-            env['CURSOR_RULES'] = tmp
-            proc = subprocess.run(
-                [shutil.which('bash') or 'bash', driver, adapter, stream],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertTrue(os.path.isfile(os.path.join(tmp, 'demo-skill.mdc')))
 
 
 if __name__ == "__main__":

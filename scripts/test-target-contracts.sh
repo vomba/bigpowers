@@ -84,20 +84,19 @@ if (cd "$omp_fixture" && run_contract omp omp_native_resources >/dev/null 2>&1);
 else
   ta_pass "OMP contract rejects missing native resources"
 fi
-if jq -nc --arg root "$omp_fixture" --arg source "$omp_source" \
-  '{repo_root:$root,mode:"all",skills:[{name:"contract-example",description:"Inspect owned output.",source_path:$source}]}' \
-  | OMP_SKILLS="$omp_fixture/.omp/skills" "${PYTHON:-python3}" \
-    "$REPO_ROOT/scripts/lib/omp-resources.py" >/dev/null; then
+if printf '%s' '{"name":"contract-example","description":"Inspect owned output.","body":"# Contract example\nInspect the assigned change."}' \
+  | OMP_SKILLS="$omp_fixture/.omp/skills" OMP_COMMANDS="$omp_fixture/.omp/commands" \
+    bash "$REPO_ROOT/scripts/adapters/omp.sh"; then
   if (cd "$omp_fixture" && run_contract omp omp_native_resources >/dev/null); then
-    ta_pass "OMP contract accepts actual generated owned resources"
+    ta_pass "OMP contract accepts actual generated native resources"
   else
     ta_fail "OMP contract rejected actual generated resources"
   fi
-  printf '%s\n' 'User edit must survive.' >> "$omp_fixture/.omp/skills/contract-example/SKILL.md"
+  rm "$omp_fixture/.omp/commands/bigpowers-contract-example.md"
   if (cd "$omp_fixture" && run_contract omp omp_native_resources >/dev/null 2>&1); then
-    ta_fail "OMP contract accepted edited owned output"
+    ta_fail "OMP contract accepted a missing native command"
   else
-    ta_pass "OMP contract rejects edited owned output"
+    ta_pass "OMP contract rejects a missing native command"
   fi
 else
   ta_fail "OMP contract fixture generation failed"

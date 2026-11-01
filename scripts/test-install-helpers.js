@@ -267,6 +267,8 @@ try {
       '.gemini/extensions/bigpowers/hooks/before-tool-git-guard.sh',
       '.cursor/rules',
       '.pi/skills',
+      '.omp/skills',
+      '.omp/commands',
       '.mcp.json',
       'bigpowers-mcp/build/index.js',
       'skills/audit-code/SKILL.md',
@@ -290,12 +292,20 @@ try {
   // cannot model gitignore negation); prove it with a real pack listing.
   {
     const { execSync } = require('child_process');
-    const packOut = execSync('npm pack --dry-run 2>&1', {
+    const [packed] = JSON.parse(execSync('npm pack --dry-run --json', {
       cwd: ROOT,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
-    });
+    }));
+    const packedPaths = new Set(packed.files.map((file) => file.path));
     for (const tpl of [
+      '.pi/package.json',
+      '.pi/skills/audit-code/SKILL.md',
+      '.pi/prompts/audit-code.md',
+      'extensions/omp-hooks.ts',
+      '.omp/skills/audit-code/SKILL.md',
+      '.omp/commands/bigpowers-audit-code.md',
+      'scripts/validate-omp-resources.py',
       '.mcp.json',
       'bigpowers-mcp/build/index.js',
       'docs/templates/ci/github/test-build-release-node.yml',
@@ -305,7 +315,7 @@ try {
       'docs/templates/AGENTS.md',
     ]) {
       assert.ok(
-        packOut.includes(tpl),
+        packedPaths.has(tpl),
         `npm tarball must include ${tpl} (wire-ci templates, #113)`
       );
     }

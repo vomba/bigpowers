@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { agentDir, assertResourcesUnchanged, put, resourceSnapshot, sdkImport } from "./omp_native_fixture";
 import { createProviderFixture } from "./omp_native_provider";
-import { discoverResources, readNativeResources } from "./omp_native_resources";
+import { checkNativeControls, discoverResources, readNativeResources } from "./omp_native_resources";
+import { assertLegacyCoexistence, readGridResources } from "./omp_native_delivery";
 import type { NativeSdk, NativeSubagent, Policy } from "./omp_native_types";
 
 export async function runRouting(sdk: NativeSdk): Promise<void> {
@@ -15,10 +16,20 @@ export async function runRouting(sdk: NativeSdk): Promise<void> {
   const files = resourceSnapshot();
   const runtime = await createProviderFixture(sdk, resources.skills, resources.commands);
   try {
+    const userSession = await runtime.session("*", { skills: resources.userSkills });
+    await readNativeResources(userSession, resources.userSkills, resources.commandTarget, "User collision remains user owned");
     const parent = await runtime.session();
     const initialModel = parent.model;
     assert(initialModel);
-    await readNativeResources(parent, resources.generated, resources.commandTarget);
+    await readNativeResources(parent, resources.skills, resources.commandTarget, "CUSTOM-DIRECTORY-OVERRIDE");
+    await checkNativeControls(parent, resources.skills);
+    await readGridResources(parent, resources.skills);
+    assert.equal(parent.extensionRunner?.getLoadedExtensions().length, 0, "Native resources must not install an extension");
+    const beforeCommand = runtime.traces.length;
+    await parent.prompt('/bigpowers-native-example "quoted session argument" \'$ARGUMENTS $1\'');
+    assert(runtime.traces.slice(beforeCommand).some(call => call.provider === "fixture-parent" &&
+      call.text.includes("skill://native-example") && call.text.includes("quoted session argument") &&
+      call.text.includes("$ARGUMENTS $1")), "Actual session command API must expand native URI and literal arguments");
     assert.equal(parent.model, initialModel, "Inline resource reads cannot change the parent allocation");
     const context = runtime.toolSession(parent);
     const request = { session: context, invocationKind: "task", assignment: "Return deterministic fixture text", structured: false };
@@ -115,6 +126,9 @@ export async function runRouting(sdk: NativeSdk): Promise<void> {
     assert.deepEqual(readFileSync(configPath), configBytes, "Role tests must not mutate user config bytes");
     assertResourcesUnchanged(files);
     assert.deepEqual(parent.getEnabledToolNames().sort(), ["read", "task"]);
+    await assertLegacyCoexistence(runtime);
+    assertResourcesUnchanged(files);
+    assert.deepEqual(readFileSync(configPath), configBytes, "Legacy coexistence must preserve persistent configuration");
     console.log("Routing scope: deterministic TEST-ONLY providers issued controlled calls through actual SDK task tool/resolver/launcher; task and review use distinct synthetic providers, remap live, and preserve parent/config/resources.");
     console.log("Excluded: arbitrary LLM compliance with skill instructions, real-provider availability, credentials, and live UAT.");
   } finally { await runtime.dispose(); }

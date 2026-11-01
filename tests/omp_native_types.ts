@@ -1,5 +1,5 @@
 // Structural surface exercised from runtime-selected, package-export-resolved SDK modules.
-export interface Skill { name: string; filePath: string; baseDir: string; hide?: boolean; }
+export interface Skill { name: string; description: string; filePath: string; baseDir: string; hide?: boolean; }
 export interface Command { name: string; content: string; source: string; }
 export interface Model { id: string; provider: string; api: string; }
 export interface ToolResult { content: { type: string; text?: string }[]; isError?: boolean; }
@@ -16,6 +16,12 @@ export interface NativeSession {
   model?: Model;
   sessionId: string;
   getToolByName(name: string): Tool | undefined;
+  readonly systemPrompt: string[];
+  readonly extensionRunner?: {
+    getLoadedExtensions(): { resolvedPath: string; handlers: Map<string, unknown[]> }[];
+    getAllRegisteredTools(): { definition: { name: string } }[];
+    getRegisteredCommands(): { name: string }[];
+  };
   getEnabledToolNames(): string[];
   prompt(text: string): Promise<void>;
   dispose(): Promise<void>;
@@ -42,6 +48,9 @@ export interface NativeSlash {
   expandSlashCommand(text: string, commands: Command[]): string;
 }
 export interface Policy { agentName: string; modelRole?: string; modelOverride?: string[]; }
+export interface NativeSkills {
+  loadSkills(options: { cwd: string; customDirectories?: string[]; enablePiUser?: boolean }): Promise<{ skills: Skill[]; warnings: unknown[] }>;
+}
 export interface NativeSubagent {
   resolveEffectiveSubagentPolicy(request: Record<string, unknown>): Promise<Policy>;
   runStructuredSubagent(request: Record<string, unknown>): Promise<unknown>;

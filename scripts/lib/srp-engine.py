@@ -5,6 +5,7 @@ import os
 import sys
 import json
 import glob
+import re
 import shutil
 import subprocess
 import tempfile
@@ -14,12 +15,6 @@ import tempfile
 _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
-
-# Native generation must not add source-tree cache files outside .omp.
-_previous_bytecode_policy = sys.dont_write_bytecode
-sys.dont_write_bytecode = True
-from omp_dispatch import requests_omp, run_omp  # noqa: E402
-sys.dont_write_bytecode = _previous_bytecode_policy or requests_omp(sys.argv[1:])
 
 from link_utils import LINK_RE, EXTERNAL_RE  # noqa: E402
 from srp_engine_links import rewrite_links_for_pi  # noqa: E402
@@ -46,6 +41,18 @@ def resolve_repo_root():
         return repo_candidate
     return os.path.dirname(lib_dir)
 
+def parse_frontmatter(content: str, source: object) -> tuple:
+    """Read a skill header without treating quoted delimiter text as a boundary."""
+    match = re.match(r"\A\ufeff?---[ \t]*\r?\n(.*?)^---[ \t]*(?:\r?\n|\Z)",
+                     content, re.M | re.S)
+    if not match:
+        raise ValueError(f"Invalid frontmatter in {source}; use standalone --- delimiters")
+    header = re.sub(r"^<!--\s*story:.*?-->[ \t]*(?:\r?\n|\Z)", "", match[1], flags=re.M | re.S)
+    metadata = _load_yaml(header)
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Invalid metadata in {source}; expected a YAML mapping")
+    return metadata, content[match.end():]
+
 def parse_skill(skill_md_path):
     if not os.path.isfile(skill_md_path):
         print(f"Error: file not found {skill_md_path}", file=sys.stderr)
@@ -57,18 +64,8 @@ def parse_skill(skill_md_path):
     with open(skill_md_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Split frontmatter and body
-    parts = content.split('---')
-    if len(parts) < 3:
-        print(f"Error: invalid SKILL.md format in {skill_md_path}", file=sys.stderr)
-        sys.exit(1)
-
-    frontmatter_raw = parts[1]
-    # The body of SKILL.md starts after the second '---'
-    skill_body = '---'.join(parts[2:])
-
     try:
-        frontmatter = _load_yaml(frontmatter_raw)
+        frontmatter, skill_body = parse_frontmatter(content, skill_md_path)
     except Exception as e:
         print(f"Error parsing YAML frontmatter in {skill_md_path}: {e}", file=sys.stderr)
         sys.exit(1)
@@ -105,13 +102,15 @@ def parse_skill(skill_md_path):
         'description': description,
         'effort': effort,
         'model': model,
-        'body': body
+        'body': body,
+        'invocation_controls': {key: frontmatter[key] for key in
+                                ('hide', 'disable-model-invocation') if key in frontmatter}
     }
 
 def get_active_adapters(repo_root):
     targets_file = os.path.join(repo_root, "scripts", "targets.yaml")
     if not os.path.isfile(targets_file):
-        return ["cursor", "gemini", "pi"]
+        return ["cursor", "gemini", "pi", "omp"]
     try:
         with open(targets_file, 'r', encoding='utf-8') as f:
             data = _load_yaml(f.read())
@@ -124,7 +123,7 @@ def get_active_adapters(repo_root):
         return sorted(adapters)
     except Exception as e:
         print(f"Warning: error reading targets.yaml: {e}", file=sys.stderr)
-        return ["cursor", "gemini", "pi"]
+        return ["cursor", "gemini", "pi", "omp"]
 
 def iterate_skills(repo_root):
     skills_root = os.path.join(repo_root, "skills")
@@ -184,7 +183,8 @@ def _write_ir_stream(records):
     with os.fdopen(fd, "wb") as stream:
         for data in records:
             pi_body = rewrite_links_for_pi(data['body'], data['name'])
-            for field in (data['name'], data['description'], data['model'], data['body'], pi_body):
+            controls = json.dumps(data.get('invocation_controls', {}), sort_keys=True)
+            for field in (data['name'], data['description'], data['model'], data['body'], pi_body, controls):
                 stream.write(field.encode("utf-8"))
                 stream.write(b"\x00")
     return stream_path
@@ -225,16 +225,10 @@ def render_all(records, adapters, repo_root):
 
 def main():
     repo_root = resolve_repo_root()
-    if requests_omp(sys.argv[1:]):
-        run_omp(sys.argv[1:], repo_root, load_yaml=_load_yaml,
-                iterate_skills=iterate_skills,
-                dispatch=dispatch_to_adapter)
-        return
-
     if "--all" in sys.argv:
         okf_mode = "--okf" in sys.argv
         skills = iterate_skills(repo_root)
-        adapters = [adapter for adapter in get_active_adapters(repo_root) if adapter != "omp"]
+        adapters = get_active_adapters(repo_root)
 
         okf_wiki_skills = os.environ.get("OKF_WIKI_SKILLS", os.path.join(repo_root, "specs", "skills-wiki", "skills"))
 
@@ -271,7 +265,7 @@ def main():
 
     skill_data = parse_skill(skill_md_path)
 
-    if target == "pi":
+    if target in ("pi", "omp"):
         skill_data = dict(skill_data)
         skill_data["body_pi_skill"] = rewrite_links_for_pi(skill_data['body'], skill_data['name'])
 

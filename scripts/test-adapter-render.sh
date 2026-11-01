@@ -54,14 +54,9 @@ for adapter in scripts/adapters/*.sh; do
     local -a envs=()
     for v in "${outvars[@]}"; do envs+=("$v=$dir"); done
     if [[ "$id" == "omp" ]]; then
-      local source_root="$TMP_ROOT/omp-source"
-      local source_skill="$source_root/skills/test-skill/SKILL.md"
-      mkdir -p "$(dirname "$source_skill")"
-      printf '%s\n' '---' 'name: test-skill' 'description: test desc' '---' \
-        '# Test skill' 'Inspect a concrete change.' > "$source_skill"
       local output_root
       output_root="$(cd "$dir" && pwd -P)" || return 1
-      envs+=("SKILL_MD_PATH=$source_skill" "OMP_SOURCE_ROOT=$source_root" "OMP_SKILLS=$output_root/skills")
+      envs+=("OMP_SKILLS=$output_root/skills" "OMP_COMMANDS=$output_root/commands")
     fi
     ( set +e
       env "${envs[@]}" bash -c '

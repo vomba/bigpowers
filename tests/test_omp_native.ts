@@ -1,4 +1,4 @@
-// Native integration harness: no root dependency, downloads, or operational OMP fallback.
+// Isolated SDK harness; legacy coexistence also uses the extension's existing Typebox dev dependency.
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,34 +29,33 @@ assert.equal(JSON.parse(manifest.toString()).version, "18.13.3");
 console.log(`Runtime provenance: published npm SRI verified in approved lock; lock sha256=${createHash("sha256").update(lockBytes).digest("hex")}; manifest sha256=${createHash("sha256").update(manifest).digest("hex")}`);
 console.log("Integrity scope: validates installed package identity and lock provenance, not a fresh tarball/file-tree attestation.");
 
-const isolated = realpathSync(mkdtempSync(path.join(tmpdir(), "bigpowers-omp-native-")));
-try {
-  const home = path.join(isolated, "home");
-  const agentDir = path.join(home, ".omp", "agent");
-  const workspace = path.join(isolated, "workspace-$ARGUMENTS-$1");
-  for (const dir of [home, agentDir, workspace, "config", "data", "state", "cache", "tmp"].map(
-    dir => path.isAbsolute(dir) ? dir : path.join(isolated, dir))) mkdirSync(dir, { recursive: true });
-  // Whitelist, never copy process.env: excludes provider secrets, overlays, plugins, and sessions.
-  const env: Record<string, string> = {
-    HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(isolated, "config"),
-    XDG_DATA_HOME: path.join(isolated, "data"), XDG_STATE_HOME: path.join(isolated, "state"),
-    XDG_CACHE_HOME: path.join(isolated, "cache"), TMPDIR: path.join(isolated, "tmp"),
-    PI_CODING_AGENT_DIR: agentDir, PI_CONFIG_DIR: ".omp", OMP_PROFILE: "",
-    BIGPOWERS_OMP_TEST_ROOT: runtimeRoot, BIGPOWERS_OMP_FIXTURE_ROOT: isolated,
-    BIGPOWERS_OMP_SOURCE_ROOT: repo, BIGPOWERS_OMP_TEST_SUITE: suite,
-    PATH: `${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`, LANG: "en_US.UTF-8",
-    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: path.join(home, "gitconfig"),
-  };
-  const python = process.env.BIGPOWERS_OMP_TEST_PYTHON;
-  if (python) {
-    assert(path.isAbsolute(python), "BIGPOWERS_OMP_TEST_PYTHON must be an explicit Python executable with PyYAML");
-    env.BIGPOWERS_OMP_TEST_PYTHON = python;
-    env.PATH = `${path.dirname(python)}:${env.PATH}`;
+const python = process.env.BIGPOWERS_OMP_TEST_PYTHON;
+assert(python && path.isAbsolute(python), "BIGPOWERS_OMP_TEST_PYTHON must explicitly select the isolated Python executable with PyYAML");
+for (const mode of suite === "prerequisites" ? ["fixture"] : ["fixture", "delivery"]) {
+  const isolated = realpathSync(mkdtempSync(path.join(tmpdir(), `bigpowers-omp-native-${mode}-`)));
+  try {
+    const home = path.join(isolated, "home");
+    const agentDir = path.join(home, ".omp", "agent");
+    const workspace = path.join(isolated, "workspace with spaces $ARGUMENTS $1");
+    for (const dir of [home, agentDir, workspace, "config", "data", "state", "cache", "tmp"].map(
+      dir => path.isAbsolute(dir) ? dir : path.join(isolated, dir))) mkdirSync(dir, { recursive: true });
+    // Whitelist, never copy process.env: excludes provider secrets, overlays, plugins, and sessions.
+    const env: Record<string, string> = {
+      HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(isolated, "config"),
+      XDG_DATA_HOME: path.join(isolated, "data"), XDG_STATE_HOME: path.join(isolated, "state"),
+      XDG_CACHE_HOME: path.join(isolated, "cache"), TMPDIR: path.join(isolated, "tmp"),
+      PI_CODING_AGENT_DIR: agentDir, PI_CONFIG_DIR: ".omp", OMP_PROFILE: "",
+      BIGPOWERS_OMP_TEST_ROOT: runtimeRoot, BIGPOWERS_OMP_FIXTURE_ROOT: isolated,
+      BIGPOWERS_OMP_SOURCE_ROOT: repo, BIGPOWERS_OMP_TEST_SUITE: suite, BIGPOWERS_OMP_TEST_MODE: mode,
+      BIGPOWERS_OMP_TEST_PYTHON: python, PYTHONNOUSERSITE: "1",
+      PATH: `${path.dirname(python)}:${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`, LANG: "en_US.UTF-8",
+      GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: path.join(home, "gitconfig"),
+    };
+    const child = Bun.spawn([process.execPath, "--no-env-file", path.join(import.meta.dir, "omp_native_worker.ts")],
+      { cwd: workspace, env, stdout: "inherit", stderr: "inherit" });
+    const exit = await child.exited;
+    assert.equal(exit, 0, `Isolated native ${suite}/${mode} suite failed (exit ${exit})`);
+  } finally {
+    rmSync(isolated, { recursive: true, force: true });
   }
-  const child = Bun.spawn([process.execPath, "--no-env-file", path.join(import.meta.dir, "omp_native_worker.ts")],
-    { cwd: workspace, env, stdout: "inherit", stderr: "inherit" });
-  const exit = await child.exited;
-  assert.equal(exit, 0, `Isolated native ${suite} suite failed (exit ${exit})`);
-} finally {
-  rmSync(isolated, { recursive: true, force: true });
 }

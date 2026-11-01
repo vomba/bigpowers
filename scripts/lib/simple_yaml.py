@@ -1,5 +1,6 @@
 # story: e38s01
 # simple_yaml.py — Custom lightweight YAML parser extracted from trace-matrix.py.
+import json
 import re
 
 def parse_simple_yaml(text: str) -> dict:
@@ -162,11 +163,13 @@ def _fold_block(raw_lines, style):
 def _yaml_scalar(val: str):
     """Convert a YAML scalar string to Python type."""
     stripped = val.strip()
-    # Double-quoted scalar: unescape YAML escapes (\" and \\) like PyYAML, and
-    # keep it a string (no bool/int coercion). Keeps the PyYAML-free fallback
-    # byte-identical to PyYAML for quoted descriptions.
+    # Generated headers use JSON scalars, including newline/tab/Unicode escapes.
+    # Retain the existing subset for YAML-specific escapes that JSON does not accept.
     if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
-        return stripped[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        try:
+            return json.loads(stripped)
+        except json.JSONDecodeError:
+            return stripped[1:-1].replace('\\"', '"').replace("\\\\", "\\")
     val = val.strip('"').strip("'")
     if val in ("true", "false"):
         return val == "true"

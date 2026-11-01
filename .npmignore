@@ -9,4 +9,3 @@ docs/*
 .env
 .env.local
 website/
-.omp/

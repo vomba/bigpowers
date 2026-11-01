@@ -262,6 +262,7 @@ Skill content is edited in `skills/*/SKILL.md` and auto-propagated to these targ
 - `.cursor/rules/` — Cursor IDE rules
 - `.gemini/extensions/bigpowers/` — Gemini CLI extensions
 - `.pi/skills/` + `.pi/prompts/` — pi agent
+- `.omp/skills/` + `.omp/commands/` — native OMP resources
 - `website/src/content/docs/` — Docs website (Astro Starlight, deployed to GitHub Pages)
 
 **Never edit any of these targets directly.** Edit the SKILL.md sources and run rebuild scripts (`bash scripts/sync-skills.sh`, `npm run site:build`).

@@ -112,12 +112,11 @@ assert_hooks_manifest() {
 assert_omp_native_resources() {
   local id="$1"
   local root="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-  if "${PYTHON:-python3}" "$root/scripts/lib/omp-resources.py" --check \
-    "${OMP_SKILLS:-$PWD/.omp/skills}/.."; then
+  if "${PYTHON:-python3}" "$root/scripts/validate-omp-resources.py" "$PWD"; then
     echo "PASS $id:omp_native_resources"
     return 0
   fi
-  echo "FAIL $id:omp_native_resources — generate or repair the owned .omp resources"
+  echo "FAIL $id:omp_native_resources — regenerate the native .omp resources"
   return 1
 }
 

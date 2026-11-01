@@ -11,13 +11,12 @@
 # the exact same rendering code while collapsing the process count to one per
 # adapter and removing the per-render jq calls.
 #
-# Input is a NUL-delimited stream written by srp-engine.py, five fields per
-# skill in order — name, description, model, body, pi body — each NUL-terminated
-# so field content may contain newlines.
+# Input is a NUL-delimited stream written by srp-engine.py: name, description,
+# model, body, link-adjusted body, invocation-controls JSON. Fields are
+# NUL-terminated so content may contain newlines.
 #
-# Adapters without a stdin entrypoint (continue, omp, zed) define render_skill
-# but were never driven by srp-engine; they are skipped so behaviour is
-# unchanged.
+# Adapters without a stdin entrypoint (continue, zed) define render_skill
+# but are not driven by srp-engine.
 #
 # Usage: adapter-render-all.sh <path-to-adapter.sh> <ir-stream-file>
 set -u
@@ -57,9 +56,10 @@ while IFS= read -r -d '' IR_NAME <&3; do
   IFS= read -r -d '' IR_MODEL <&3
   IFS= read -r -d '' IR_BODY <&3
   IFS= read -r -d '' IR_BODY_PI <&3
+  IFS= read -r -d '' IR_INVOCATION_CONTROLS <&3 || { status=1; break; }
 
   IR_DESC_ESCAPED=$(echo "$IR_DESCRIPTION" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  if [[ "$adapter_id" == "pi" ]]; then
+  if [[ "$adapter_id" == "pi" || "$adapter_id" == "omp" ]]; then
     IR_BODY_SKILL="$IR_BODY_PI"
   else
     IR_BODY_SKILL="$IR_BODY"

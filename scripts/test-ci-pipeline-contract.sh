@@ -29,7 +29,7 @@ check_dir() { # $1 = workflows dir; prints violations, exits non-zero on any
 import glob, os, re, sys, yaml
 
 d = sys.argv[1]
-GATES = {"sync", "verification-gates", "skill-verify", "story-verify"}
+GATES = {"sync", "verification-gates", "skill-verify", "story-verify", "omp-native"}
 RETIRED = ["publish.yml", "sync-skills.yml", "golden-suite.yml"]
 EXEMPT = {"agent-locks.yml", "agentics-maintenance.yml"}
 bad = []
@@ -72,12 +72,16 @@ else:
     missing = GATES - set(jobs)
     if missing:
         bad.append(f"pipeline lacks gate jobs: {sorted(missing)}")
-    # Gate jobs: the four named ones plus any other job that needs nothing —
-    # a new root job is a gate until it says otherwise with a needs: edge.
+    if needs_of(jobs.get("omp-native", {})):
+        bad.append("omp-native must be an independent root gate")
+    # Named gates plus any other job that needs nothing:
     gate_jobs = (GATES | {n for n, j in jobs.items() if not needs_of(j)}) - {"release"}
     rel = jobs.get("release")
     if not rel:
         bad.append("pipeline has no release job")
+    pages_build = jobs.get("pages-build", {})
+    if not gate_jobs <= needs_of(pages_build):
+        bad.append(f"pages-build does not need: {sorted(gate_jobs - needs_of(pages_build))}")
     pages = [n for n, j in jobs.items() if deploys_pages(j)]
     if not pages:
         bad.append("pipeline has no Pages deploy job")
@@ -149,15 +153,16 @@ jobs:
   verification-gates: {runs-on: ubuntu-22.04, timeout-minutes: 15, steps: [{run: "true"}]}
   skill-verify: {runs-on: ubuntu-22.04, timeout-minutes: 10, steps: [{run: "true"}]}
   story-verify: {runs-on: ubuntu-22.04, timeout-minutes: 10, steps: [{run: "true"}]}
+  omp-native: {runs-on: ubuntu-22.04, timeout-minutes: 15, steps: [{run: "true"}]}
   release:
-    needs: [sync, verification-gates, skill-verify, story-verify]
+    needs: [sync, verification-gates, skill-verify, story-verify, omp-native]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     concurrency: {group: release, cancel-in-progress: false}
     steps: [{run: "true"}]
   pages-build:
-    needs: [sync, verification-gates, skill-verify, story-verify]
+    needs: [sync, verification-gates, skill-verify, story-verify, omp-native]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 15
@@ -178,8 +183,22 @@ YAML
   write_fixture "$tmp/good"; expect "conforming pipeline passes" pass "$tmp/good"
 
   write_fixture "$tmp/no-needs"
-  sed -i.bak 's/needs: \[sync, verification-gates, skill-verify, story-verify\]/needs: [sync]/' "$tmp/no-needs/test-build-release.yml"
+  sed -i.bak 's/needs: \[sync, verification-gates, skill-verify, story-verify, omp-native\]/needs: [sync]/' "$tmp/no-needs/test-build-release.yml"
   expect "release missing gate needs fails" fail "$tmp/no-needs"
+
+  for sink in release pages-build; do
+    write_fixture "$tmp/no-native-$sink"
+    "$PYTHON" - "$tmp/no-native-$sink/test-build-release.yml" "$sink" <<'PY'
+import sys, yaml
+path, sink = sys.argv[1:]
+with open(path) as stream:
+    pipeline = yaml.safe_load(stream)
+pipeline["jobs"][sink]["needs"].remove("omp-native")
+with open(path, "w") as stream:
+    yaml.safe_dump(pipeline, stream)
+PY
+    expect "$sink missing only omp-native fails" fail "$tmp/no-native-$sink"
+  done
 
   write_fixture "$tmp/latest"
   sed -i.bak 's/runs-on: ubuntu-22.04, timeout-minutes: 15/runs-on: ubuntu-latest, timeout-minutes: 15/' "$tmp/latest/test-build-release.yml"
