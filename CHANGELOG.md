@@ -1,3 +1,21 @@
+# [2.89.0](https://github.com/danielvm-git/bigpowers/compare/v2.88.18...v2.89.0) (2026-11-02)
+
+
+### Features
+
+* **skills:** remove context7-mcp skill for provider-agnostic catalog ([#180](https://github.com/danielvm-git/bigpowers/issues/180)) ([514826b](https://github.com/danielvm-git/bigpowers/commit/514826b9c5c003aad45349e9cf54b2f09976a7ce))
+
+## [2.88.18](https://github.com/danielvm-git/bigpowers/compare/v2.88.17...v2.88.18) (2026-11-02)
+
+
+### Bug Fixes
+
+* **dashboard:** bind the project dashboard to loopback ([#175](https://github.com/danielvm-git/bigpowers/issues/175)) ([b796b17](https://github.com/danielvm-git/bigpowers/commit/b796b17f3b077a36d725018d3ad6f2fb5cc0426f))
+* **dashboard:** escape project metadata before rendering HTML ([#178](https://github.com/danielvm-git/bigpowers/issues/178)) ([f905d5b](https://github.com/danielvm-git/bigpowers/commit/f905d5b30753e715d8675401aeceefa98d850476))
+* **mcp:** filter every diff before returning its contents ([#174](https://github.com/danielvm-git/bigpowers/issues/174)) ([d0b9f70](https://github.com/danielvm-git/bigpowers/commit/d0b9f70a7319d396858890e2abfa1253b68837ff))
+* **migrate:** treat version metadata and preview paths as data ([#177](https://github.com/danielvm-git/bigpowers/issues/177)) ([2b0649c](https://github.com/danielvm-git/bigpowers/commit/2b0649c0a8723695e2c1f078112bca3993b8b383))
+* **scripts:** escape AGENTS commands when emitting Bash exports ([#176](https://github.com/danielvm-git/bigpowers/issues/176)) ([1800dd5](https://github.com/danielvm-git/bigpowers/commit/1800dd5f682cb98afdbbdce06cbcc8cae2a6eb9f))
+
 ## [2.88.17](https://github.com/danielvm-git/bigpowers/compare/v2.88.16...v2.88.17) (2026-10-30)
 
 

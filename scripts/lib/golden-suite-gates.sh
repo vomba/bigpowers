@@ -9,6 +9,7 @@ GOLDEN_GATES=(
   "compliance:npm run compliance:false"
   "g04-selftest:bash scripts/golden-g04-selftest.sh:true"
   "g06-migrate-version:bash tests/run-golden-migrate-version.sh:true"
+  "security-migration:node tests/security/migration.cjs:false"
   "g07-negative-path:bash scripts/golden-g07-negative-path.sh:false"
   "g08-anti-vacuity:bash scripts/golden-g08-anti-vacuity.sh:false"
   "g09-yaml-roundtrip:bash scripts/golden-g09-yaml-roundtrip.sh:false"
@@ -66,11 +67,15 @@ GOLDEN_GATES=(
   "golden-g11-worktree-venv:bash scripts/test-golden-g11-worktree-venv.sh:false"
   "install-helpers:bash scripts/test-install-helpers.sh:false"
   "project-runtime:bash scripts/test-project-runtime.sh:false"
+  "security-agents-import:node tests/security/agents-import.cjs:false"
   "omp-extension:bash scripts/validate-omp-extension.sh:false"
   "omp-resources:python3 tests/test_omp_sync.py:false"
   "mcp-package:bash scripts/validate-mcp-package.sh:false"
+  "security-git-context:node tests/security/git-context.cjs:false"
   "docs-base-path:bash scripts/validate-docs-base-path.sh:false"
+  "security-dashboard-bind:node tests/security/dashboard-bind.cjs:false"
   "import-boundaries:bash scripts/check-import-boundaries.sh:false"
+  "security-dashboard-render:node tests/security/dashboard-render.cjs:false"
   "skill-catalog:bash scripts/validate-skill-catalog.sh:false"
   "specs-parse:bash scripts/validate-specs-yaml.sh:false"
   # The runner itself: failing output is shown, skips are named and reasoned.
@@ -205,3 +210,4 @@ golden_run_deterministic_gates() {
     fi
   done
 }
+
