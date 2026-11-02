@@ -118,6 +118,11 @@ for path in sorted(glob.glob(os.path.join(d, "*.yml"))):
         continue
     for job_name, job in (load(path).get("jobs") or {}).items():
         where = f"{name}:{job_name}"
+        # Runner context exists only after job allocation; step env may use it.
+        # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
+        job_values = (job.get("env") or {}).values()
+        if any(re.search(r"\$\{\{\s*runner\s*(?:\.|\[)", str(value)) for value in job_values):
+            bad.append(f"{where}: runner context unavailable in job env; resolve paths in a runner step")
         if name != "test-build-release.yml" and deploys_pages(job):
             bad.append(f"{where}: Pages deploy outside the pipeline (no needs: edge to the gates)")
         if "uses" in job:  # reusable-workflow call: no runner of its own
@@ -181,6 +186,26 @@ YAML
   }
 
   write_fixture "$tmp/good"; expect "conforming pipeline passes" pass "$tmp/good"
+
+  for scope in job step; do
+    write_fixture "$tmp/runner-$scope"
+    "$PYTHON" - "$tmp/runner-$scope/test-build-release.yml" "$scope" <<'PY'
+import sys, yaml
+path, scope = sys.argv[1:]
+with open(path) as stream:
+    pipeline = yaml.safe_load(stream)
+job = pipeline["jobs"]["omp-native"]
+target = job if scope == "job" else job["steps"][0]
+target["env"] = {"SDK_ROOT": "${{ runner.temp }}/sdk"}
+with open(path, "w") as stream:
+    yaml.safe_dump(pipeline, stream)
+PY
+    if [ "$scope" = job ]; then
+      expect "runner context rejected before job allocation" fail "$tmp/runner-$scope"
+    else
+      expect "runner context allowed in step environment" pass "$tmp/runner-$scope"
+    fi
+  done
 
   write_fixture "$tmp/no-needs"
   sed -i.bak 's/needs: \[sync, verification-gates, skill-verify, story-verify, omp-native\]/needs: [sync]/' "$tmp/no-needs/test-build-release.yml"

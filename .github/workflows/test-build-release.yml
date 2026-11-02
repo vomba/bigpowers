@@ -124,9 +124,6 @@ jobs:
   omp-native:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-    env:
-      BIGPOWERS_OMP_TEST_ROOT: ${{ runner.temp }}/bigpowers-omp-sdk
-      BIGPOWERS_OMP_TEST_PYTHON: ${{ runner.temp }}/bigpowers-omp-python/bin/python
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
@@ -147,10 +144,14 @@ jobs:
 
       - name: Install isolated native OMP test dependencies
         run: |
+          export BIGPOWERS_OMP_TEST_ROOT="$RUNNER_TEMP/bigpowers-omp-sdk"
+          export BIGPOWERS_OMP_TEST_PYTHON="$RUNNER_TEMP/bigpowers-omp-python/bin/python"
           python -m venv "$(dirname "$(dirname "$BIGPOWERS_OMP_TEST_PYTHON")")"
           "$BIGPOWERS_OMP_TEST_PYTHON" -m pip install PyYAML
           npm install --prefix "$BIGPOWERS_OMP_TEST_ROOT" --ignore-scripts --no-audit --no-fund \
             @oh-my-pi/pi-coding-agent@18.13.3
+          printf 'BIGPOWERS_OMP_TEST_ROOT=%s\nBIGPOWERS_OMP_TEST_PYTHON=%s\n' \
+            "$BIGPOWERS_OMP_TEST_ROOT" "$BIGPOWERS_OMP_TEST_PYTHON" >> "$GITHUB_ENV"
 
       - name: Run native OMP compatibility suite
         run: bun tests/test_omp_native.ts --suite all
